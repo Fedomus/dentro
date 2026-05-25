@@ -58,6 +58,18 @@ export default async function DashboardOferentePage() {
           </p>
         </div>
 
+        {/* Accesos rápidos */}
+        <a
+          href="/oferente/productos"
+          className="rounded-2xl bg-[#EAF5CC] border-2 border-[#6DC200] px-5 py-4 flex items-center justify-between hover:bg-[#dff0b3] transition-colors"
+        >
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-[#4A4A4A]">Administrar productos</span>
+            <span className="text-xs text-[#888]">Publicar, activar o desactivar productos</span>
+          </div>
+          <span className="text-[#6DC200] font-bold text-lg">→</span>
+        </a>
+
         {/* Lista de ofertas */}
         <div className="flex flex-col gap-3">
           <h2 className="text-xs font-bold text-[#888] uppercase tracking-widest">
