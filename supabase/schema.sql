@@ -191,6 +191,27 @@ end $$;
 
 
 -- ============================================================
+-- GRANTS — Permisos de tabla por rol
+-- (RLS policies controlan filas; GRANT controla acceso a la tabla)
+-- ============================================================
+
+-- Rol anónimo: lectura de tablas públicas
+grant select on public.zonas          to anon;
+grant select on public.categorias     to anon;
+grant select on public.productos      to anon;
+grant select on public.disponibilidad to anon;
+
+-- Rol autenticado: acceso completo según RLS
+grant select, insert, update on public.zonas          to authenticated;
+grant select                  on public.categorias     to authenticated;
+grant select                  on public.productos      to authenticated;
+grant select, insert, update  on public.disponibilidad to authenticated;
+grant select, insert, update  on public.profiles       to authenticated;
+grant select, insert          on public.conversaciones to authenticated;
+grant select, insert          on public.mensajes       to authenticated;
+
+
+-- ============================================================
 -- DATOS SEMILLA — Piloto Estancias Pilar
 -- ============================================================
 

@@ -16,6 +16,25 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const redirect = request.nextUrl.searchParams.get('redirect') ?? '/'
-  return NextResponse.redirect(new URL(redirect, request.url), { status: 302 })
+  // Si hay un redirect explícito (ej: desde middleware), usarlo
+  const explicitRedirect = request.nextUrl.searchParams.get('redirect')
+  if (explicitRedirect) {
+    return NextResponse.redirect(new URL(explicitRedirect, request.url), { status: 302 })
+  }
+
+  // Redirigir según rol del usuario
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('rol')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profile?.rol === 'oferente') {
+      return NextResponse.redirect(new URL('/oferente/dashboard', request.url), { status: 302 })
+    }
+  }
+
+  return NextResponse.redirect(new URL('/', request.url), { status: 302 })
 }

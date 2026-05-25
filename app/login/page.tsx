@@ -1,15 +1,28 @@
 import Logo from '@/components/Logo'
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const { error } = await searchParams
   return (
     <div className="flex min-h-screen items-center justify-center px-6 bg-white">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="flex flex-col items-center gap-4">
           <Logo size="md" />
           <p className="text-[#888] text-sm font-medium text-center">
-            Necesitás una cuenta para contactar a un proveedor.
+            Ingresá para acceder a tu cuenta.
           </p>
         </div>
+
+        {error && (
+          <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 font-medium text-center">
+            {error === 'Invalid login credentials'
+              ? 'Email o contraseña incorrectos.'
+              : error}
+          </div>
+        )}
 
         <form action="/auth/login" method="POST" className="flex flex-col gap-4">
           <input
