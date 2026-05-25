@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -6,8 +7,29 @@ export async function POST(request: NextRequest) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const cookieStore = await cookies()
+
+  // Capturamos las cookies que Supabase quiere setear para pasarlas al redirect
+  const cookiesToSet: { name: string; value: string; options: Record<string, unknown> }[] = []
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(incoming) {
+          incoming.forEach(({ name, value, options }) =>
+            cookiesToSet.push({ name, value, options })
+          )
+        },
+      },
+    }
+  )
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     return NextResponse.redirect(
@@ -16,25 +38,27 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Si hay un redirect explícito (ej: desde middleware), usarlo
+  // Determinar destino del redirect
   const explicitRedirect = request.nextUrl.searchParams.get('redirect')
-  if (explicitRedirect) {
-    return NextResponse.redirect(new URL(explicitRedirect, request.url), { status: 302 })
-  }
+  let redirectUrl = explicitRedirect ?? '/'
 
-  // Redirigir según rol del usuario
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user) {
+  if (!explicitRedirect && data.user) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('rol')
-      .eq('user_id', user.id)
+      .eq('user_id', data.user.id)
       .single()
 
     if (profile?.rol === 'oferente') {
-      return NextResponse.redirect(new URL('/oferente/dashboard', request.url), { status: 302 })
+      redirectUrl = '/oferente/dashboard'
     }
   }
 
-  return NextResponse.redirect(new URL('/', request.url), { status: 302 })
+  // Crear el redirect y aplicar las cookies de sesión sobre él
+  const response = NextResponse.redirect(new URL(redirectUrl, request.url), { status: 302 })
+  cookiesToSet.forEach(({ name, value, options }) =>
+    response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
+  )
+
+  return response
 }
