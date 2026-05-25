@@ -1,5 +1,5 @@
 -- ============================================================
--- DENTRO — Schema completo
+-- DENTRO — Schema completo (idempotente — se puede correr varias veces)
 -- Pegar en: Supabase → SQL Editor → New query → Run
 -- ============================================================
 
@@ -7,7 +7,7 @@
 -- ============================================================
 -- 1. ZONAS
 -- ============================================================
-create table public.zonas (
+create table if not exists public.zonas (
   id   uuid primary key default gen_random_uuid(),
   nombre text not null,
   slug   text not null unique
@@ -16,7 +16,7 @@ create table public.zonas (
 -- ============================================================
 -- 2. CATEGORIAS
 -- ============================================================
-create table public.categorias (
+create table if not exists public.categorias (
   id     uuid primary key default gen_random_uuid(),
   nombre text not null,
   icono  text  -- emoji o nombre de ícono
@@ -25,7 +25,7 @@ create table public.categorias (
 -- ============================================================
 -- 3. PRODUCTOS
 -- ============================================================
-create table public.productos (
+create table if not exists public.productos (
   id           uuid primary key default gen_random_uuid(),
   nombre       text not null,
   descripcion  text,
@@ -36,7 +36,7 @@ create table public.productos (
 -- ============================================================
 -- 4. PROFILES (extiende auth.users)
 -- ============================================================
-create table public.profiles (
+create table if not exists public.profiles (
   id       uuid primary key default gen_random_uuid(),
   user_id  uuid not null unique references auth.users(id) on delete cascade,
   nombre   text,
@@ -48,7 +48,7 @@ create table public.profiles (
 -- ============================================================
 -- 5. DISPONIBILIDAD
 -- ============================================================
-create table public.disponibilidad (
+create table if not exists public.disponibilidad (
   id                 uuid primary key default gen_random_uuid(),
   producto_id        uuid not null references public.productos(id) on delete cascade,
   zona_id            uuid not null references public.zonas(id) on delete cascade,
@@ -61,7 +61,7 @@ create table public.disponibilidad (
 -- ============================================================
 -- 6. CONVERSACIONES
 -- ============================================================
-create table public.conversaciones (
+create table if not exists public.conversaciones (
   id                uuid primary key default gen_random_uuid(),
   demandante_id     uuid not null references auth.users(id) on delete cascade,
   oferente_id       uuid not null references auth.users(id) on delete cascade,
@@ -72,7 +72,7 @@ create table public.conversaciones (
 -- ============================================================
 -- 7. MENSAJES
 -- ============================================================
-create table public.mensajes (
+create table if not exists public.mensajes (
   id               uuid primary key default gen_random_uuid(),
   conversacion_id  uuid not null references public.conversaciones(id) on delete cascade,
   autor_id         uuid not null references auth.users(id) on delete cascade,
@@ -81,14 +81,13 @@ create table public.mensajes (
 );
 
 -- Índice para acelerar la carga del chat
-create index mensajes_conversacion_idx on public.mensajes(conversacion_id, created_at asc);
+create index if not exists mensajes_conversacion_idx on public.mensajes(conversacion_id, created_at asc);
 
 
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
 
--- Zonas, categorías y productos son públicos (lectura)
 alter table public.zonas        enable row level security;
 alter table public.categorias   enable row level security;
 alter table public.productos    enable row level security;
@@ -96,6 +95,20 @@ alter table public.disponibilidad enable row level security;
 alter table public.profiles     enable row level security;
 alter table public.conversaciones enable row level security;
 alter table public.mensajes     enable row level security;
+
+-- Eliminar políticas previas para recrearlas sin error
+drop policy if exists "zonas_lectura_publica"            on public.zonas;
+drop policy if exists "categorias_lectura_publica"       on public.categorias;
+drop policy if exists "productos_lectura_publica"        on public.productos;
+drop policy if exists "disponibilidad_lectura_publica"   on public.disponibilidad;
+drop policy if exists "disponibilidad_update_oferente"   on public.disponibilidad;
+drop policy if exists "profiles_select_propio"           on public.profiles;
+drop policy if exists "profiles_insert_propio"           on public.profiles;
+drop policy if exists "profiles_update_propio"           on public.profiles;
+drop policy if exists "conversaciones_participantes"     on public.conversaciones;
+drop policy if exists "conversaciones_insert_demandante" on public.conversaciones;
+drop policy if exists "mensajes_select_participantes"    on public.mensajes;
+drop policy if exists "mensajes_insert_participantes"    on public.mensajes;
 
 -- Zonas: lectura pública
 create policy "zonas_lectura_publica"
@@ -165,24 +178,34 @@ create policy "mensajes_insert_participantes"
     )
   );
 
--- Habilitar Realtime para mensajes
-alter publication supabase_realtime add table public.mensajes;
+-- Habilitar Realtime para mensajes (solo si no está ya registrada)
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'mensajes'
+  ) then
+    alter publication supabase_realtime add table public.mensajes;
+  end if;
+end $$;
 
 
 -- ============================================================
 -- DATOS SEMILLA — Piloto Estancias Pilar
 -- ============================================================
 
--- Zonas
+-- Zonas (solo inserta si no existen)
 insert into public.zonas (nombre, slug) values
   ('Estancias del Pilar', 'estancias-pilar'),
   ('Los Castores',        'los-castores'),
-  ('Santa María',         'santa-maria');
+  ('Santa María',         'santa-maria')
+on conflict (slug) do nothing;
 
--- Categorías
+-- Categorías (solo inserta si no existen)
 insert into public.categorias (nombre, icono) values
   ('Leña y combustible', '🪵'),
   ('Hielo y bebidas',    '🧊'),
   ('Carbón y parrilla',  '🔥'),
   ('Viandas y comida',   '🥗'),
-  ('Congelados',         '❄️');
+  ('Congelados',         '❄️')
+on conflict do nothing;

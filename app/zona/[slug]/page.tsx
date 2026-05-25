@@ -11,11 +11,21 @@ export default async function ZonaPage({ params }: PageProps) {
   const { slug } = await params
   const supabase = await createClient()
 
-  const { data: zona } = await supabase
+  const { data: zona, error: zonaError } = await supabase
     .from('zonas')
     .select('id, nombre')
     .eq('slug', slug)
     .single()
+
+  if (zonaError && zonaError.code !== 'PGRST116') {
+    // PGRST116 = "no rows found" → 404 legítimo
+    // Cualquier otro error (conexión, permisos) → throw para ver en logs
+    console.error('[zona page] Supabase error code:', zonaError.code)
+    console.error('[zona page] Supabase error message:', zonaError.message)
+    console.error('[zona page] Supabase error details:', zonaError.details)
+    console.error('[zona page] Supabase error hint:', zonaError.hint)
+    throw new Error(`Error al cargar la zona: ${zonaError.message} (code: ${zonaError.code})`)
+  }
 
   if (!zona) notFound()
 
